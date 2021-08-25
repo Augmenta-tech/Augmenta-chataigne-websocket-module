@@ -13,23 +13,17 @@ var maxObjectsDisplayed = 5;
 
 function init()
 {
-	local.parameters.oscOutputs.setCollapsed(true);
+
 	local.parameters.pass_through.setCollapsed(true);
 	local.values.singleObject.setCollapsed(true);
 	local.values.fusion.setCollapsed(true);
-	local.values.info.setCollapsed(true);
-	local.values.info.node.setCollapsed(true);
-	local.values.info.node.sensor.setCollapsed(true);
-	local.values.info.node.debug.setCollapsed(true);
 	local.scripts.setCollapsed(true);
-	local.scripts.getChild("Augmenta").enableLog.set(true);
+	local.scripts.getChild("augmenta_websocket").enableLog.set(true); // unknown function set : why ??
 
 	for(var i = 0 ; i < maxObjectsDisplayed ; i++)
 	{	
 		local.values.getChild("object" + i).setCollapsed(true);
 	}
-
-	local.parameters.oscOutputs.enabled.set(false); // does not always work : strange
 }
 
 function moduleParameterChanged(param)
@@ -67,223 +61,199 @@ function moduleParameterChanged(param)
 	}
 }
 
-function moduleValueChanged(value)
+
+function wsMessageReceived(message)
 {
-	if(value.is(local.values.info.requestInfo))
-	{
-		// Activate OSC Output
-		local.parameters.oscOutputs.enabled.set(true);
 
-		// Detect computer's IP
+	// scene
+	if (message.charAt(3) == 's') {
+		// initialize or update scene
+		setAugmentaScene(local.values.scene,message);
+	}
 
-		var ipArray = util.getIPs();
-		var ipToSend;
+	// fusion
+	else if (message.charAt(3) == 'f') {
+		// initialize or update fusion
+		setAugmentaFusion(local.values.fusion,message);
+	}
 
-		for (var i = 0; i < ipArray.length ; i++) {
-			
-			if(ipArray[i].startsWith("192"))
+	// object
+	else if (message.charAt(3) == 'o') {
+
+		var msg = JSON.parse(message);
+
+		if(message.charAt(15) == 'e') { // enter
+
+			var oid = msg.object.enter.oid;
+
+			// initialize object
+			for(var i = 0 ; i < maxObjectsDisplayed ; i++)
 			{
-				ipToSend = ipArray[i];
+			 	if(oid == i)
+			 	{
+ 					local.values.getChild("object" + i).setCollapsed(false);
+ 					setAugmentaObject(local.values.getChild("object" + i), message);
+			 	}
+			}
+
+			// initialize oldest and newest
+			// oldest is always oid = 0 if algo is correctly implemented
+			if(local.parameters.singleObjectMode.get() == "oldest" && oid == 0)
+			{
+				setAugmentaObject(local.values.singleObject, message);
+
+			} else if(local.parameters.singleObjectMode.get() == "newest" && oid == getNewestId())
+			{
+				setAugmentaObject(local.values.singleObject, message);
+			}
+				
+		} else if(message.charAt(15) == 'u') { // update
+
+			var oid = msg.object.update.oid;
+
+			// update object
+			for(var i = 0 ; i < maxObjectsDisplayed ; i++)
+			{
+				if(oid == i)
+				{
+ 					updateAugmentaObject(local.values.getChild("object" + i), message);
+
+ 					// extra
+ 					if(local.parameters.displayObjectExtraData.get()) {
+ 						setAugmentaExtraObject(local.values.getChild("object" + i).extra, message);
+ 					}
+				}
+			}
+
+			// update oldest and newest
+			// oldest is always oid = 0 if algo is correctly implemented
+			if(local.parameters.singleObjectMode.get() == "oldest" && oid == 0)
+			{
+				updateAugmentaObject(local.values.singleObject, message);
+
+				// extra
+				if(local.parameters.displayObjectExtraData.get()) {
+ 					setAugmentaExtraObject(local.values.singleObject.extra, message);
+ 				}
+
+			} else if(local.parameters.singleObjectMode.get() == "newest" && oid == getNewestId())
+			{
+
+				updateAugmentaObject(local.values.singleObject, message);
+
+				// extra
+				if(local.parameters.displayObjectExtraData.get()) {
+ 					setAugmentaExtraObject(local.values.singleObject.extra, message);
+ 				}
+
+			}
+
+		} else if(message.charAt(15) == 'l') { //leave
+					
+			var oid = msg.object.leave.oid;
+
+			// reset object	
+			for(var i = 0 ; i < maxObjectsDisplayed ; i++)
+			{
+			 	if(oid == i)
+			 	{
+ 					local.values.getChild("object" + i).setCollapsed(true);
+ 					resetAugmentaObject(local.values.getChild("object" + i));
+
+ 					// extra
+ 					if(local.parameters.displayObjectExtraData.get()) {
+ 						resetAugmentaExtraObject(local.values.getChild("object" + i).extra, message);
+ 					}
+			 	}
+			}
+
+			// reset oldest and newest
+			// oldest is always oid = 0 if algo is correctly implemented
+			if(local.parameters.singleObjectMode.get() == "oldest" && oid == 0)
+			{
+				resetAugmentaObject(local.values.singleObject);
+
+				// extra
+				if(local.parameters.displayObjectExtraData.get()) {
+ 					setAugmentaExtraObject(local.values.singleObject.extra, message);
+ 				}
+
+			} else if(local.parameters.singleObjectMode.get() == "newest" && oid == getNewestId())
+			{
+				resetAugmentaObject(local.values.singleObject);
+
+				// extra
+				if(local.parameters.displayObjectExtraData.get()) {
+ 					setAugmentaExtraObject(local.values.singleObject.extra, message);
+ 				}
 			}
 		}
-
-		// Request Info
-		script.log("Requesting /info to be sent to (should be this computer Ip) : ",ipToSend);
-		// /info <serverIp:string> <ControlRemotePort:int> <version:int> sent to remoteIp:ControlRemotePort
-		local.send("/info", ipToSend, local.parameters.oscInput.localPort.get(), 2);
-		resetAugmentaInfo();
-	}
+	}		
 }
 
-function oscEvent(address,args)
+// scene updated or initialized
+function setAugmentaScene (scene,message) 
 {
+	var msg = JSON.parse(message);
 
-	if(address == "/scene")
-	{
-		setAugmentaScene(local.values.scene, args);
-
-	} else if(address == "/object/update")
-	{
-
-		// Update objects
-		for(var i = 0 ; i < maxObjectsDisplayed ; i++)
-		{
-			 if(args[2] == i) //args[2] = oid
-			 {
- 				setAugmentaObject(local.values.getChild("object" + i), args);
-			 }
-		}
-
-		// Update Oldest and newest
-		// Oldest is always oid = 0 if algo is correctly implemented
-		if(local.parameters.singleObjectMode.get() == "oldest" && args[2] == 0)
-		{
-			setAugmentaObject(local.values.singleObject, args);
-
-		} else if(local.parameters.singleObjectMode.get() == "newest" && args[2] == getNewestId())
-		{
-
-			setAugmentaObject(local.values.singleObject, args);
-
-		}
-
-	} else if(address == "/object/enter")
-	{
-		// Update objects
-		for(var i = 0 ; i < maxObjectsDisplayed ; i++)
-		{
-			 if(args[2] == i) //args[2] = oid
-			 {
- 				local.values.getChild("object" + i).setCollapsed(false);
- 				setAugmentaObject(local.values.getChild("object" + i), args);
-			 }
-		}
-
-		// Update Oldest and newest
-		// Oldest is always oid = 0 if algo is correctly implemented
-		if(local.parameters.singleObjectMode.get() == "oldest" && args[2] == 0)
-		{
-			setAugmentaObject(local.values.singleObject, args);
-
-		} else if(local.parameters.singleObjectMode.get() == "newest" && args[2] == getNewestId())
-		{
-			setAugmentaObject(local.values.singleObject, args);
-		}
-
-	} else if(address == "/object/leave")
-	{
-		
-		for(var i = 0 ; i < maxObjectsDisplayed ; i++)
-		{
-			 if(args[2] == i) //args[2] = oid
-			 {
- 				local.values.getChild("object" + i).setCollapsed(true);
- 				resetAugmentaObject(local.values.getChild("object" + i), args);
-			 }
-		}
-
-		// Reset Oldest and newest
-		// Oldest is always oid = 0 if algo is correctly implemented
-		if(local.parameters.singleObjectMode.get() == "oldest" && args[2] == 0)
-		{
-			resetAugmentaObject(local.values.singleObject);
-
-		} else if(local.parameters.singleObjectMode.get() == "newest" && args[2] == getNewestId())
-		{
-			resetAugmentaObject(local.values.singleObject);
-		}
-	} else if(address == "/object/update/extra")
-	{
-
-		// Update objects
-		for(var i = 0 ; i < maxObjectsDisplayed ; i++)
-		{
-			 if(args[2] == i) //args[2] = oid
-			 {
- 				setAugmentaExtraObject(local.values.getChild("object" + i).extra, args);
-			 }
-		}
-
-		// Update Oldest and newest
-		// Oldest is always oid = 0 if algo is correctly implemented
-		if(local.parameters.singleObjectMode.get() == "oldest" && args[2] == 0)
-		{
-			setAugmentaExtraObject(local.values.singleObject.extra, args);
-
-		} else if(local.parameters.singleObjectMode.get() == "newest" && args[2] == getNewestId())
-		{
-
-			setAugmentaExtraObject(local.values.singleObject.extra, args);
-
-		}
-
-	} else if(address == "/object/enter/extra")
-	{
-		// Update objects;
-		for(var i = 0 ; i < maxObjectsDisplayed ; i++)
-		{
-			 if(args[2] == i) //args[2] = oid
-			 {
- 				local.values.getChild("object" + i).setCollapsed(false);
- 				setAugmentaExtraObject(local.values.getChild("object" + i).extra, args);
-			 }
-		}
-
-		// Update Oldest and newest
-		// Oldest is always oid = 0 if algo is correctly implemented
-		if(local.parameters.singleObjectMode.get() == "oldest" && args[2] == 0)
-		{
-			setAugmentaExtraObject(local.values.singleObject.extra, args);
-
-		} else if(local.parameters.singleObjectMode.get() == "newest" && args[2] == getNewestId())
-		{
-			setAugmentaExtraObject(local.values.singleObject.extra, args);
-		}
-
-	} else if(address == "/object/leave/extra")
-	{
-		
-		for(var i = 0 ; i < maxObjectsDisplayed ; i++)
-		{
-			 if(args[2] == i) //args[2] = oid
-			 {
- 				local.values.getChild("object" + i).setCollapsed(true);
- 				resetAugmentaExtraObject(local.values.getChild("object" + i).extra, args);
-			 }
-		}
-
-		// Reset Oldest and newest
-		// Oldest is always oid = 0 if algo is correctly implemented
-		if(local.parameters.singleObjectMode.get() == "oldest" && args[2] == 0)
-		{
-			resetAugmentaExtraObject(local.values.singleObject.extra);
-
-		} else if(local.parameters.singleObjectMode.get() == "newest" && args[2] == getNewestId())
-		{
-			resetAugmentaExtraObject(local.values.singleObject.extra);
-		}
-	} else if(address == "/fusion")
-	{
-		setAugmentaFusion(local.values.fusion, args);
-
-	} else if(address.startsWith("/info"))
-	{
-		setAugmentaInfo(address, args);
-	}
-
-	else if(address == "/au/scene")
-	{
-		script.logWarning(" : This module can display only V2 protocol data, not V1");
-	}
+	scene.frame.set(msg.scene.frame);
+	scene.objectCount.set(msg.scene.objectCount);
+	scene.width.set(msg.scene.scene.width);
+	scene.height.set(msg.scene.scene.height);
 }
 
-function setAugmentaObject(object, args)
+// fusion updated or initialized
+function setAugmentaFusion(fusion,message)
 {
+	var msg = JSON.parse(message);
+
+	fusion.videoOutOffset.set(msg.fusion.textureOffset.x,msg.fusion.textureOffset.y);
+	fusion.videoOutSize.set(msg.fusion.targetOutSize.x,msg.fusion.targetOutSize.y);
+	fusion.videoOutWidthInPixels.set(msg.fusion.textureBounds.x);
+	fusion.videoOutHeightInPixels.set(msg.fusion.textureBounds.y);
+}
+
+// called on object entered
+function setAugmentaObject (object,message) 
+{
+	var msg = JSON.parse(message);
+
 	object.hasData.set(true);
-	object.frame.set(args[0]);
-	object.id.set(args[1]);
-	object.oid.set(args[2]);
-	object.age.set(args[3]);
-	object.centroid.set(args[4],args[5]);
-	object.velocity.set(args[6],args[7]);
-	object.orientation.set(args[8]);
-	object.boundingRectCoord.set(args[9],args[10]);
-	object.boundingRectWidth.set(args[11]);
-	object.boundingRectHeight.set(args[12]);
-	object.boundingRectRotation.set(args[13]);
-	object.height.set(args[14]);
+	object.frame.set(msg.object.enter.frame);
+	object.id.set(msg.object.enter.id);
+	object.oid.set(msg.object.enter.oid);
+	object.age.set(msg.object.enter.age);
+	object.centroid.set(msg.object.enter.centroid.x, msg.object.enter.centroid.y);
+	object.velocity.set(msg.object.enter.velocity.x, msg.object.enter.velocity.y);
+	object.orientation.set(msg.object.enter.orientation);
+	object.boundingRectCoord.set(msg.object.enter.boundingRect.x, msg.object.enter.boundingRect.y);
+	object.boundingRectWidth.set(msg.object.enter.boundingRect.width);
+	object.boundingRectHeight.set(msg.object.enter.boundingRect.height);
+	object.boundingRectRotation.set(msg.object.enter.orientation); // different from orientation ?
+	object.height.set(msg.object.enter.height);
 }
 
-function setAugmentaExtraObject(object, args)
+// called on object updated
+function updateAugmentaObject (object,message) 
 {
-	object.frame.set(args[0]);
-	object.id.set(args[1]);
-	object.oid.set(args[2]);
-	object.highest.set(args[3],args[4]);
-	object.distance.set(args[5]);
-	object.reflectivity.set(args[6]);
+	var msg = JSON.parse(message);
+
+	object.hasData.set(true);
+	object.frame.set(msg.object.update.frame);
+	object.id.set(msg.object.update.id);
+	object.oid.set(msg.object.update.oid);
+	object.age.set(msg.object.update.age);
+	object.centroid.set(msg.object.update.centroid.x, msg.object.update.centroid.y);
+	object.velocity.set(msg.object.update.velocity.x, msg.object.update.velocity.y);
+	object.orientation.set(msg.object.update.orientation);
+	object.boundingRectCoord.set(msg.object.update.boundingRect.x, msg.object.update.boundingRect.y);
+	object.boundingRectWidth.set(msg.object.update.boundingRect.width);
+	object.boundingRectHeight.set(msg.object.update.boundingRect.height);
+	object.boundingRectRotation.set(msg.object.update.orientation); // different from orientation ?
+	object.height.set(msg.object.update.height);
 }
 
+// called on object left 
 function resetAugmentaObject(object)
 {
 	object.hasData.set(false);
@@ -301,6 +271,24 @@ function resetAugmentaObject(object)
 	object.height.set(0);
 }
 
+// Extra
+
+function setAugmentaExtraObject(object, message)
+{
+	var msg = JSON.parse(message);
+
+	//script.log(msg.update.extra.distance);
+
+	object.frame.set(msg.object.update.extra.frame);
+	object.id.set(msg.object.update.extra.id);
+	object.oid.set(msg.object.update.extra.oid);
+	object.highest.set(msg.update.extra.highest.x,msg.update.extra.highest.y);
+	object.distance.set(msg.update.extra.distance);
+	object.reflectivity.set(msg.update.extra.reflectivity);
+}
+
+
+
 function resetAugmentaExtraObject(object)
 {
 	object.frame.set(0);
@@ -311,153 +299,11 @@ function resetAugmentaExtraObject(object)
 	object.reflectivity.set(0);
 }
 
-function resetAugmentaInfo()
-{
-	var info = local.values.info;
-
-	info.sourceName.set("");
-	info.tags.set("");
-	info.sourceType.set("");
-	info.macAddress.set("");
-	info.ipAddress.set("");
-	info.version.set("");
-	info.currentFile.set("");
-	info.protocolsAvailable.set("");
-	info.node.sensor.sensorType.set("");
-	info.node.sensor.sensorBrand.set("");
-	info.node.sensor.sensorName.set("");
-	info.node.sensor.fov.set(0,0);
-	info.node.sensor.position.set(0,0,0);
-	info.node.sensor.orientation.set(0,0,0);
-	info.node.floorMode.set("");
-	info.node.floorState.set("");
-	info.node.backgroundMode.set("");
-	info.node.debug.pipeName.set("");
-	info.node.debug.sensor.set("");
-	info.node.debug.videoPipe.set("");
-	info.node.debug.trackingPipe.set("");
-	info.node.debug.processPID.set(0);
-}
-
-function setAugmentaInfo(address, args)
-{
-	var info = local.values.info;
-
-	if(address == "/info/name")
-	{
-		info.sourceName.set(args[0]);
-
-	} else if(address == "/info/tags")
-	{
-		info.tags.set(args[0]);
-
-	} else if(address == "/info/type")
-	{
-		info.sourceType.set(args[0]);
-
-	} else if(address == "/info/mac")
-	{
-		info.macAddress.set(args[0]);
-		
-	} else if(address == "/info/ip")
-	{
-		info.ipAddress.set(args[0]);
-		
-	} else if(address == "/info/version")
-	{
-		info.version.set(args[0]);
-		
-	} else if(address == "/info/currentFile")
-	{
-		info.currentFile.set(args[0]);
-		
-	} else if(address == "/info/protocolAvailable")
-	{
-		info.protocolsAvailable.set(args[0]);
-		
-	} else if(address == "/info/sensor/type")
-	{
-		info.node.sensor.sensorType.set(args[0]);
-		
-	} else if(address == "/info/sensor/brand")
-	{
-		info.node.sensor.sensorBrand.set(args[0]);
-		
-	} else if(address == "/info/sensor/name")
-	{
-		info.node.sensor.sensorName.set(args[0]);
-		
-	} else if(address == "/info/sensor/hfov")
-	{
-		info.node.sensor.hfov.set(args[0]);
-		
-	} else if(address == "/info/sensor/vfov")
-	{
-		info.node.sensor.vfov.set(args[0]);
-		
-	} else if(address == "/info/sensor/position")
-	{
-		info.node.sensor.position.set(args[0],args[1],args[2]);
-		
-	} else if(address == "/info/sensor/orientation")
-	{
-		info.node.sensor.orientation.set(args[0],args[1],args[2]);
-		
-	} else if(address == "/info/floorMode")
-	{
-		info.node.floorMode.set(args[0]);
-		
-	} else if(address == "/info/floorState")
-	{
-		info.node.floorState.set(args[0]);
-		
-	} else if(address == "/info/backgroundMode")
-	{
-		info.node.backgroundMode.set(args[0]);
-		
-	} else if(address == "/info/debug/pipeName")
-	{
-		info.node.debug.pipeName.set(args[0]);
-		
-	} else if(address == "/info/debug/sensor")
-	{
-		info.node.debug.sensor.set(args[0]);
-		
-	} else if(address == "/info/debug/videoPipe")
-	{
-		info.node.debug.videoPipe.set(args[0]);
-		
-	} else if(address == "/info/debug/trackingPipe")
-	{
-		info.node.debug.trackingPipe.set(args[0]);
-		
-	} else if(address == "/info/debug/pid")
-	{
-		info.node.debug.processPID.set(args[0]);
-	}
-}
-
-function setAugmentaScene(scene, args)
-{
-	scene.frame.set(args[0]);
-	scene.objectCount.set(args[1]);
-	scene.width.set(args[2]);
-	scene.height.set(args[3]);
-}
-
-function setAugmentaFusion(fusion, args)
-{
-	fusion.videoOutOffset.set(args[0],args[1]);
-	fusion.videoOutSize.set(args[2],args[3]);
-	fusion.videoOutWidthInPixels.set(args[4]);
-	fusion.videoOutHeightInPixels.set(args[5]);
-}
-
 function getNewestId(args)
 {
 	if(local.values.scene.objectCount.get() > 0)
 	{
-		// Newest is last id of the scene so newest oid is objectCount-1
+		// newest is last id of the scene so newest oid is objectCount-1
 		return local.values.scene.objectCount.get() - 1;
 
 	} else

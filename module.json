@@ -11,7 +11,8 @@
 	"hasInput":true,
 	"hasOutput":false,
 	"hideDefaultCommands":true,
-	"hideDefaultParameters": ["autoAdd"],
+	"hideDefaultParameters": ["autoAdd","Protocol","messageStructure","firstValueIsTheName"],
+	"alwaysShowValues":false,
 
 	"parameters":
 	{
@@ -28,26 +29,14 @@
 		"Display Object Extra Data":
 		{
 			"type":"Boolean"
-		}	
+		}
 	},
 
 	"defaults":
 	{		
-		"OSC Input":
-		{
-			"localPort":12000
-		},
-		"OSC Outputs":
-		{
-			"enabled":false,
-
-			"OSC Output":
-			{
-				"local":true,
-				"RemoteHost":"192.168.1.42",
-				"RemotePort":36278
-			}
-		}
+		"Protocol":"JSON",
+		"firstValueIsTheName": true,
+		"autoAdd":false
 	},
 
 	"scripts":
@@ -57,116 +46,6 @@
 
 	"values":
 	{
-		
-		"Info":
-		{
-			"type":"Container",
-			"request info":
-			{
-				"type":"Trigger"
-			},
-			"source name":
-			{
-				"type":"String"
-			},
-			"tags":
-			{
-				"type":"String"
-			},
-			"source type":
-			{
-				"type":"String"
-			},
-			"mac address":
-			{
-				"type":"String"
-			},
-			"ip address":
-			{
-				"type":"String"
-			},
-			"version":
-			{
-				"type":"String"
-			},
-			"current file":
-			{
-				"type":"String"
-			},
-			"protocols available":
-			{
-				"type":"String"
-			},
-			"Node":
-			{
-				"type":"Container",
-				"Sensor":
-				{
-					"type":"Container",
-					"sensor type":
-					{
-						"type":"String"
-					},
-					"sensor brand":
-					{
-						"type":"String"
-					},
-					"sensor name":
-					{
-						"type":"String"
-					},
-					"fov":
-					{
-						"type":"Point2D"
-					},
-					"position":
-					{
-						"type":"Point3D"
-					},
-					"orientation":
-					{
-						"type":"Point3D"
-					}
-				},
-				"floor mode":
-				{
-					"type":"String"
-				},
-				"floor state":
-				{
-					"type":"String"
-				},
-				"background mode":
-				{
-					"type":"String"
-				},
-
-				"Debug":
-				{
-					"type":"Container",
-					"pipe name":
-					{
-						"type":"String"
-					},
-					"sensor":
-					{
-						"type":"String"
-					},
-					"videoPipe":
-					{
-						"type":"String"
-					},
-					"trackingPipe":
-					{
-						"type":"String"
-					},
-					"processPID":
-					{
-						"type":"Integer"
-					}
-				}
-			}
-		},
 		"Scene":
 		{
 			"type":"Container",
