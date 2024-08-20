@@ -1,7 +1,9 @@
 ﻿Augmenta Chataigne websocket module
 ===================================
 
-A [Chataigne][] module maintained by [Théoriz studio][]
+Note : this module is currently not maintained
+
+A [Chataigne][] module maintained by [Augmenta][]
 
 Install
 -------
@@ -61,5 +63,5 @@ Thanks to [BenKuper] for his kind support and his awesome open source software.
 
 [BenKuper]: https://github.com/benkuper
 [Chataigne]: https://benjamin.kuperberg.fr/chataigne/
-[Augmenta]: https://www.augmenta-tech.com/
+[Augmenta]: https://augmenta.tech/
 [Théoriz studio]: https://www.theoriz.com/
