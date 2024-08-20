@@ -1,12 +1,12 @@
 {
 	"name":"Augmenta websocket",
 	"type":"WebSocket Client",
-	"path":"Theoriz",
+	"path":"Augmenta",
 	
 	"version":"0.0.1",
-	"description":"Get tracking websocket data from THEORIZ's Augmenta tracking system. www.augmenta-tech.com",
-	"url":"https://github.com/Theoriz/Augmenta-chataigne-websocket-module",
-	"downloadURL":"https://github.com/Theoriz/Augmenta-chataigne-websocket-module/archive/master.zip",
+	"description":"Get tracking websocket data from the Augmenta tracking system. https://augmenta.tech",
+	"url":"https://github.com/Augmenta-tech/Augmenta-chataigne-websocket-module",
+	"downloadURL":"https://github.com/Augmenta-tech/Augmenta-chataigne-websocket-module/archive/master.zip",
 	
 	"hasInput":true,
 	"hasOutput":false,
